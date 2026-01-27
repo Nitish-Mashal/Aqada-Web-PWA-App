@@ -15,14 +15,13 @@
           class="w-full h-full border-none absolute"></iframe>
       </transition>
     </div>
-    <!-- Main Content End -->
 
-    <!-- Bottom Content Start -->
+    <!-- Bottom Controls -->
     <hr />
     <div class="mt-auto mb-3 w-full">
       <div class="flex justify-between items-center px-4 relative">
-        <!-- Back Button -->
-        <button @click="showPreviousGame" class="flex justify-center items-center gap-2">
+        <button @click="switchGame('prev')" class="flex justify-center items-center gap-2">
+          <!-- Left Arrow -->
           <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5"
             stroke="currentColor" class="size-10">
             <path stroke-linecap="round" stroke-linejoin="round"
@@ -30,9 +29,7 @@
           </svg>
         </button>
 
-        <!-- Game Name with "How to Play" Icon -->
         <div class="absolute left-1/2 transform -translate-x-1/2 flex items-center gap-2" v-if="games.length">
-          <!-- Question Mark Icon -->
           <button @click="showHowToPlay = true" class="flex items-center justify-center">
             <svg xmlns="http://www.w3.org/2000/svg" fill="currentColor" viewBox="0 0 24 24"
               class="w-6 h-6 text-blue-600 hover:text-blue-800 cursor-pointer">
@@ -41,14 +38,13 @@
             </svg>
           </button>
 
-          <!-- Game Name -->
           <div class="text-lg font-semibold">
             {{ games[currentGame].game_type_name }}
           </div>
         </div>
 
-        <!-- Next Button -->
-        <button @click="showNextGame" class="flex justify-center items-center gap-2">
+        <button @click="switchGame('next')" class="flex justify-center items-center gap-2">
+          <!-- Right Arrow -->
           <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5"
             stroke="currentColor" class="size-10">
             <path stroke-linecap="round" stroke-linejoin="round"
@@ -57,48 +53,25 @@
         </button>
       </div>
     </div>
-    <!-- Bottom Content End -->
 
-    <!-- "How to Play" Popup Modal -->
+    <!-- How to Play Modal -->
     <div v-if="showHowToPlay" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
       <div class="bg-white rounded-xl w-11/12 max-w-lg max-h-[60vh] p-6 overflow-y-auto shadow-lg relative">
-        <!-- Close Button (top-right) -->
         <button @click="showHowToPlay = false"
           class="absolute top-3 right-3 text-gray-700 hover:text-black text-xl font-bold">
           ✕
         </button>
-
         <h2 class="text-xl font-bold mb-4">How to Play</h2>
-
-        <!-- Example Content (text + image) -->
-        <p class="mb-2">
-          Follow these instructions to play the game. Use the controls to navigate and score points.
-        </p>
-
-        <img src="/Aqada.jpg" alt="Game Instructions" class="rounded-lg mb-4" />
-        <p class="mb-2">1. Use arrow keys or swipe gestures to move.</p>
-        <p class="mb-2">2. Collect coins and avoid obstacles.</p>
-        <p class="mb-2">3. Reach the highest score possible!</p>
-
-        <img src="/Aqada.jpg" alt="Game Instructions" class="rounded-lg mb-4" />
-        <p class="mb-2">1. Use arrow keys or swipe gestures to move.</p>
-        <p class="mb-2">2. Collect coins and avoid obstacles.</p>
-        <p class="mb-2">3. Reach the highest score possible!</p>
-
-        <img src="/Aqada.jpg" alt="Game Instructions" class="rounded-lg mb-4" />
-        <p class="mb-2">1. Use arrow keys or swipe gestures to move.</p>
-        <p class="mb-2">2. Collect coins and avoid obstacles.</p>
-        <p class="mb-2">3. Reach the highest score possible!</p>
-
+        <p>{{ currentGameData?.game_type_how_to?.content }}</p>
+        <img :src="currentGameData?.game_type_how_to?.image" alt="Instructions" class="rounded-lg mt-4" />
       </div>
     </div>
-
-
   </div>
 </template>
 
 <script>
-import axios from "axios";
+import { useGameStore } from "../stores/useGameStore";
+import { useUserStore } from "../stores/useUserStore";
 import Cookies from "js-cookie";
 
 export default {
@@ -106,62 +79,51 @@ export default {
   data() {
     return {
       currentGame: 0,
-      games: [],
-      isLoading: true,
-      showHowToPlay: false, // NEW state for popup
+      showHowToPlay: false,
     };
   },
-  async mounted() {
-    await this.fetchGames();
-    this.showLoader();
-  },
-  watch: {
-    currentGame(newIndex, oldIndex) {
-      if (this.games.length > 0) {
-        this.updateGameStatus(oldIndex, "inactive");
-        this.updateGameStatus(newIndex, "active");
-      }
+  computed: {
+    gameStore() {
+      return useGameStore();
     },
+    games() {
+      return this.gameStore.games;
+    },
+    isLoading() {
+      return this.gameStore.isLoading;
+    },
+    currentGameData() {
+      return this.games[this.currentGame] || {};
+    },
+  },
+  async mounted() {
+    const userStore = useUserStore();
+    await userStore.createUnsignedUser();
+
+    await this.gameStore.fetchGames();
+    this.updateLocalSequence();
   },
   methods: {
-    async fetchGames() {
-      try {
-        const response = await axios.get("http://localhost:5000/games");
-        if (response.data && response.data.length) {
-          this.games = response.data;
-          this.updateGameStatus(this.currentGame, "active");
-        } else {
-          console.error("No games found in API response.");
-        }
-      } catch (error) {
-        console.error("Error fetching games:", error);
+    updateLocalSequence() {
+      const currentSequence = this.games[this.currentGame]?.publish_sequence_no;
+      if (currentSequence) {
+        localStorage.setItem("current_sequence_no", currentSequence);
+        console.log(`📦 Stored current_sequence_no: ${currentSequence}`);
       }
     },
-    updateGameStatus(index, status) {
-      if (this.games.length > 0 && this.games[index]) {
-        const gameId = this.games[index]._id;
-        Cookies.set("_id", gameId, { expires: 7, path: "/" });
-        Cookies.set("gameStatus", status, { expires: 7, path: "/" });
-        console.log(`Stored game ID: ${gameId} with status: ${status}`);
+    async switchGame(direction) {
+      if (!this.games.length) return;
+
+      const oldIndex = this.currentGame;
+      if (direction === "next") {
+        this.currentGame = (this.currentGame + 1) % this.games.length;
+      } else {
+        this.currentGame = (this.currentGame - 1 + this.games.length) % this.games.length;
       }
-    },
-    showLoader() {
-      this.isLoading = true;
-      setTimeout(() => {
-        this.isLoading = false;
-      }, 3000);
-    },
-    showPreviousGame() {
-      const oldIndex = this.currentGame;
-      this.currentGame = (this.currentGame - 1 + this.games.length) % this.games.length;
-      this.updateGameStatus(oldIndex, "inactive");
-      this.showLoader();
-    },
-    showNextGame() {
-      const oldIndex = this.currentGame;
-      this.currentGame = (this.currentGame + 1) % this.games.length;
-      this.updateGameStatus(oldIndex, "inactive");
-      this.showLoader();
+
+      this.updateLocalSequence();
+      Cookies.set("gameStatus", "active", { expires: 7, path: "/" });
+      console.log(`🔄 Switched game from ${oldIndex} → ${this.currentGame}`);
     },
   },
 };

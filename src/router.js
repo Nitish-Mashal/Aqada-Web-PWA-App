@@ -4,13 +4,13 @@ import gameArea from './components/gameArea.vue'
 
 const routes = [
 
+  // {
+  //   path: '/',
+  //   name: 'Login',
+  //   component: Login,
+  // },
   {
     path: '/',
-    name: 'Login',
-    component: Login,
-  },
-  {
-    path: '/gameArea',
     name: 'gameArea',
     component: gameArea,
   },
