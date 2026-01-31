@@ -3,6 +3,7 @@ import vue from '@vitejs/plugin-vue'
 import { VitePWA } from 'vite-plugin-pwa'
 
 export default defineConfig({
+  base: '/aqada/',
   plugins: [
     vue(),
     VitePWA({
@@ -18,27 +19,28 @@ export default defineConfig({
         theme_color: '#ffffff',
         icons: [
           {
-            "src": "/pwa-192x192.png",
-            "sizes": "192x192",
-            "type": "image/png",
-            "purpose": "any"
+            src: '/aqada/pwa-192x192.png',
+            sizes: '192x192',
+            type: 'image/png',
+            purpose: 'any'
           },
           {
-            "src": "/pwa-512x512.png",
-            "sizes": "512x512",
-            "type": "image/png",
-            "purpose": "any"
+            src: '/aqada/pwa-512x512.png',
+            sizes: '512x512',
+            type: 'image/png',
+            purpose: 'any'
           },
           {
-            "src": "/pwa-maskable-192x192.png",
-            "sizes": "192x192",
-            "type": "image/png",
-            "purpose": "maskable"
+            src: '/aqada/pwa-maskable-192x192.png',
+            sizes: '192x192',
+            type: 'image/png',
+            purpose: 'maskable'
           },
           {
-            "src": "/pwa-maskable-512x512.png",
-            "sizes": "512x512",
-            "type": "maskable"
+            src: '/aqada/pwa-maskable-512x512.png',
+            sizes: '512x512',
+            type: 'image/png',
+            purpose: 'maskable'
           }
         ]
       }

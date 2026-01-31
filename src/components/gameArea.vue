@@ -1,130 +1,183 @@
 <template>
   <div class="h-screen w-screen flex flex-col overflow-hidden relative">
-    <!-- Splash / Loading Screen -->
-    <div v-if="isLoading" class="absolute inset-0 flex items-center justify-center bg-white z-50">
-      <img src="/Aqada.jpg" alt="Loading..." class="animate-bounce" />
+
+    <!-- Splash / Loading -->
+    <div v-if="isLoading || isSwitchingGame" class="absolute inset-0 flex items-center justify-center bg-white z-50">
+      <img :src="AqadaImage" alt="Loading..." class="animate-bounce" />
     </div>
 
-    <!-- Main Content Start -->
+    <!-- Game Area -->
     <div class="flex-grow flex items-center justify-center w-full h-full relative overflow-hidden">
       <transition enter-active-class="transition-transform duration-500 ease-in-out opacity-100"
         enter-from-class="-translate-y-full opacity-0"
         leave-active-class="transition-transform duration-500 ease-in-out opacity-100"
         leave-to-class="translate-y-full opacity-0" mode="out-in">
         <iframe v-if="games.length" :key="currentGame" :src="games[currentGame].game_url"
-          class="w-full h-full border-none absolute"></iframe>
+          class="w-full h-full border-none absolute" @load="onIframeLoaded" />
       </transition>
     </div>
 
     <!-- Bottom Controls -->
-    <hr />
+    <hr class="mb-4 mt-0" />
     <div class="mt-auto mb-3 w-full">
       <div class="flex justify-between items-center px-4 relative">
-        <button @click="switchGame('prev')" class="flex justify-center items-center gap-2">
-          <!-- Left Arrow -->
+
+        <!-- Previous Game (UP) -->
+        <button @click="switchGame('prev', 'up')" class="flex items-center justify-center">
           <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5"
-            stroke="currentColor" class="size-10">
+            stroke="currentColor" class="w-10 h-10">
             <path stroke-linecap="round" stroke-linejoin="round"
               d="m15 11.25-3-3m0 0-3 3m3-3v7.5M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
           </svg>
         </button>
 
-        <div class="absolute left-1/2 transform -translate-x-1/2 flex items-center gap-2" v-if="games.length">
-          <button @click="showHowToPlay = true" class="flex items-center justify-center">
-            <svg xmlns="http://www.w3.org/2000/svg" fill="currentColor" viewBox="0 0 24 24"
-              class="w-6 h-6 text-blue-600 hover:text-blue-800 cursor-pointer">
-              <path fill-rule="evenodd" clip-rule="evenodd"
-                d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20Zm.25 14.5a1.25 1.25 0 1 1-2.5 0 1.25 1.25 0 0 1 2.5 0Zm-2.25-7a2.75 2.75 0 1 1 4.75 2.03c-.46.45-.85.78-1.11 1.04-.32.32-.39.5-.39.88v.25a.75.75 0 0 1-1.5 0v-.25c0-.96.39-1.56.86-2.04.22-.22.52-.48.92-.87a1.25 1.25 0 1 0-2.28-.84.75.75 0 0 1-1.4-.5Z" />
-            </svg>
-          </button>
+        <!-- Game Title -->
+        <div v-if="games.length" class="absolute left-1/2 -translate-x-1/2 flex flex-col items-center text-center">
 
-          <div class="text-lg font-semibold">
-            {{ games[currentGame].game_type_name }}
+          <div class="flex items-center gap-2">
+            <div class="text-lg font-semibold">
+              {{ games[currentGame].game_type_name }}
+            </div>
+
+            <!-- How To Play Button -->
+            <button @click="showHowToPlay = true" class="flex items-center justify-center">
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5"
+                stroke="currentColor" class="w-6 h-6">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M9.879 7.519c1.171-1.025 3.071-1.025 4.242 0
+                 1.172 1.025 1.172 2.687 0 3.712-.203.179-.43.326-.67.442
+                 -.745.361-1.45.999-1.45 1.827v.75
+                 M21 12a9 9 0 1 1-18 0
+                 9 9 0 0 1 18 0Zm-9 5.25h.008v.008H12v-.008Z" />
+              </svg>
+            </button>
           </div>
+
+          <div class="text-sm text-gray-500 leading-tight">
+            {{ formatPublishDate(games[currentGame].publish_date_time) }}
+          </div>
+
         </div>
 
-        <button @click="switchGame('next')" class="flex justify-center items-center gap-2">
-          <!-- Right Arrow -->
+        <!-- Next Game (DOWN) -->
+        <button @click="switchGame('next', 'down')" class="flex items-center justify-center">
           <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5"
-            stroke="currentColor" class="size-10">
-            <path stroke-linecap="round" stroke-linejoin="round"
-              d="m9 12.75 3 3m0 0 3-3m-3 3v-7.5M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
+            stroke="currentColor" class="w-10 h-10">
+            <path stroke-linecap="round" stroke-linejoin="round" d="m9 12.75 3 3m0 0 3-3m-3 3v-7.5M21 12a9 9 0 1 1-18 0
+               9 9 0 0 1 18 0Z" />
           </svg>
         </button>
+
       </div>
     </div>
 
-    <!-- How to Play Modal -->
+    <!-- How To Play Modal -->
     <div v-if="showHowToPlay" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div class="bg-white rounded-xl w-11/12 max-w-lg max-h-[60vh] p-6 overflow-y-auto shadow-lg relative">
-        <button @click="showHowToPlay = false"
-          class="absolute top-3 right-3 text-gray-700 hover:text-black text-xl font-bold">
-          ✕
-        </button>
+      <div class="bg-white rounded-xl w-11/12 max-w-lg p-6 relative">
+        <button @click="showHowToPlay = false" class="absolute top-3 right-3">✕</button>
         <h2 class="text-xl font-bold mb-4">How to Play</h2>
         <p>{{ currentGameData?.game_type_how_to?.content }}</p>
-        <img :src="currentGameData?.game_type_how_to?.image" alt="Instructions" class="rounded-lg mt-4" />
       </div>
     </div>
+
   </div>
 </template>
 
-<script>
+<script setup>
+import { ref, computed, onMounted } from "vue";
 import { useGameStore } from "../stores/useGameStore";
 import { useUserStore } from "../stores/useUserStore";
 import Cookies from "js-cookie";
+import axios from "axios";
+import AqadaImage from "/Aqada.jpg";
 
-export default {
-  name: "GameArea",
-  data() {
-    return {
-      currentGame: 0,
-      showHowToPlay: false,
-    };
-  },
-  computed: {
-    gameStore() {
-      return useGameStore();
-    },
-    games() {
-      return this.gameStore.games;
-    },
-    isLoading() {
-      return this.gameStore.isLoading;
-    },
-    currentGameData() {
-      return this.games[this.currentGame] || {};
-    },
-  },
-  async mounted() {
-    const userStore = useUserStore();
-    await userStore.createUnsignedUser();
+/* stores */
+const gameStore = useGameStore();
+const userStore = useUserStore();
 
-    await this.gameStore.fetchGames();
-    this.updateLocalSequence();
-  },
-  methods: {
-    updateLocalSequence() {
-      const currentSequence = this.games[this.currentGame]?.publish_sequence_no;
-      if (currentSequence) {
-        localStorage.setItem("current_sequence_no", currentSequence);
-        console.log(`📦 Stored current_sequence_no: ${currentSequence}`);
+/* state */
+const currentGame = ref(0);
+const showHowToPlay = ref(false);
+const isSwitchingGame = ref(false);
+
+/* computed */
+const games = computed(() => gameStore.games);
+const isLoading = computed(() => gameStore.isLoading);
+const currentGameData = computed(() => games.value[currentGame.value] || {});
+
+/* lifecycle */
+onMounted(async () => {
+  await userStore.createUnsignedUser();
+  await gameStore.fetchGames();
+  updateLocalSequence();
+});
+
+/* methods */
+
+function onIframeLoaded() {
+  isSwitchingGame.value = false;
+}
+
+function formatPublishDate(dateTime) {
+  if (!dateTime) return "";
+  return new Date(dateTime).toLocaleDateString("en-GB", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+  });
+}
+
+function updateLocalSequence() {
+  const savedSequence = localStorage.getItem("current_sequence_no");
+  if (!savedSequence || !games.value.length) return;
+
+  const index = games.value.findIndex(
+    g => g.publish_sequence_no == savedSequence
+  );
+
+  if (index !== -1) {
+    currentGame.value = index;
+  }
+}
+
+async function switchGame(direction, scrollDir = "none") {
+  if (!games.value.length) return;
+
+  isSwitchingGame.value = true;
+
+  if (direction === "next") {
+    currentGame.value = (currentGame.value + 1) % games.value.length;
+  } else {
+    currentGame.value =
+      (currentGame.value - 1 + games.value.length) % games.value.length;
+  }
+
+  const sequence = games.value[currentGame.value].publish_sequence_no;
+
+  localStorage.setItem("current_sequence_no", sequence);
+  Cookies.set("gameStatus", "active", { expires: 7 });
+
+  try {
+    const res = await axios.get(
+      "https://aqada.online/games/get-my-games",
+      {
+        params: {
+          sequence,
+          scroll: scrollDir
+        }
       }
-    },
-    async switchGame(direction) {
-      if (!this.games.length) return;
+    );
 
-      const oldIndex = this.currentGame;
-      if (direction === "next") {
-        this.currentGame = (this.currentGame + 1) % this.games.length;
-      } else {
-        this.currentGame = (this.currentGame - 1 + this.games.length) % this.games.length;
-      }
+    console.log("API GAME RESPONSE:", res.data);
 
-      this.updateLocalSequence();
-      Cookies.set("gameStatus", "active", { expires: 7, path: "/" });
-      console.log(`🔄 Switched game from ${oldIndex} → ${this.currentGame}`);
-    },
-  },
-};
+    // ✅ update store at current index
+    if (res.data) {
+      gameStore.games[currentGame.value] = res.data;
+    }
+
+  } catch (e) {
+    console.error("API error:", e);
+    isSwitchingGame.value = false;
+  }
+}
+
 </script>
