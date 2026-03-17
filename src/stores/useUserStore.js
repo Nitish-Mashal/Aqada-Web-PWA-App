@@ -10,21 +10,23 @@ export const useUserStore = defineStore("user", {
         async createUnsignedUser() {
             try {
                 if (this.userId) {
-                    console.log("Existing User:", this.userId);
-                    return;
+                    console.log("✅ Existing User:", this.userId);
+                    return this.userId;
                 }
 
                 const response = await axios.post(
                     "https://aqada.online/users/create-unsigned-user"
                 );
 
-                if (response.data) {
+                if (response?.data) {
                     this.userId = response.data;
                     localStorage.setItem("userId", this.userId);
-                    console.log("Unsigned user created ✅", this.userId);
+
+                    console.log("✅ Unsigned user created:", this.userId);
+                    return this.userId;
                 }
             } catch (error) {
-                console.error("User creation failed:", error);
+                console.error("❌ User creation failed:", error);
             }
         },
     },
