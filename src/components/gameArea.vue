@@ -1,32 +1,32 @@
 <template>
-  <!-- ROOT -->
   <div class="w-screen h-[100dvh] flex flex-col overflow-hidden relative bg-white">
 
-    <!-- 🔥 Splash / Loading -->
+    <!-- 🔥 SPLASH SCREEN -->
     <div v-if="isLoading || isSwitchingGame"
-      class="absolute inset-0 flex items-center justify-center bg-white z-50 transition-opacity duration-300">
-      <img :src="AqadaImage" alt="Loading..." class="animate-bounce" />
+      class="absolute inset-0 flex flex-col items-center justify-center bg-white z-50">
+
+      <img :src="AqadaImage" class="animate-pulse mb-4" />
+      <p class="text-gray-500 text-sm">Loading game...</p>
     </div>
 
     <!-- GAME AREA -->
     <div class="flex-1 relative overflow-hidden">
-      <transition enter-active-class="transition-transform duration-500 ease-in-out opacity-100"
-        enter-from-class="-translate-y-full opacity-0"
-        leave-active-class="transition-transform duration-500 ease-in-out opacity-100"
-        leave-to-class="translate-y-full opacity-0" mode="out-in">
+      <transition enter-active-class="transition-transform duration-500 ease-in-out"
+        enter-from-class="-translate-y-full" leave-active-class="transition-transform duration-500 ease-in-out"
+        leave-to-class="translate-y-full" mode="out-in">
         <iframe v-if="iframeUrl" :key="iframeKey" :src="iframeUrl" class="w-full h-full border-0"
           @load="onIframeLoaded" />
       </transition>
     </div>
 
-    <!-- DIVIDER -->
-    <hr class="flex-none m-0" />
+    <hr class="m-0" />
 
-    <!-- BOTTOM CONTROLS -->
-    <div class="flex-none h-16 w-full px-4 flex items-center justify-between bg-white relative">
+    <!-- CONTROLS -->
+    <div class="relative h-16 flex items-center justify-between px-4">
 
-      <!-- Previous -->
-      <button @click="switchGame('prev', 'up')" class="flex items-center justify-center">
+      <!-- UP -->
+      <button @click="switchGame('up', 'up')" :disabled="!canGoUp"
+        :class="{ 'opacity-50 cursor-not-allowed': !canGoUp }">
         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"
           class="w-10 h-10">
           <path stroke-linecap="round" stroke-linejoin="round"
@@ -34,14 +34,16 @@
         </svg>
       </button>
 
-      <!-- Title -->
+      <!-- TITLE -->
       <div v-if="games.length" class="absolute left-1/2 -translate-x-1/2 flex flex-col items-center text-center">
+
         <div class="flex items-center gap-2">
+
           <div class="text-lg font-semibold">
             {{ currentGameData.game_type_name }}
           </div>
 
-          <!-- How to play -->
+          <!-- ❓ How to play -->
           <button @click="showHowToPlay = true">
             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5"
               stroke="currentColor" class="w-6 h-6">
@@ -53,29 +55,40 @@
                 9 9 0 0 1 18 0Zm-9 5.25h.008v.008H12v-.008Z" />
             </svg>
           </button>
+
         </div>
 
         <div class="text-sm text-gray-500">
           {{ formatPublishDate(currentGameData.publish_date_time) }}
         </div>
+
       </div>
 
-      <!-- Next -->
-      <button @click="switchGame('next', 'down')" class="flex items-center justify-center">
+      <!-- DOWN -->
+      <button @click="switchGame('down', 'down')" :disabled="!canGoDown"
+        :class="{ 'opacity-50 cursor-not-allowed': !canGoDown }">
         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"
           class="w-10 h-10">
           <path stroke-linecap="round" stroke-linejoin="round" d="m9 12.75 3 3m0 0 3-3m-3 3v-7.5M21 12a9 9 0 1 1-18 0
             9 9 0 0 1 18 0Z" />
         </svg>
       </button>
+
     </div>
 
-    <!-- HOW TO PLAY MODAL -->
+    <!-- ✅ HOW TO PLAY MODAL -->
     <div v-if="showHowToPlay" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div class="bg-white rounded-xl w-11/12 max-w-lg p-6 relative">
-        <button @click="showHowToPlay = false" class="absolute top-3 right-3">✕</button>
+
+      <div class="bg-white rounded-xl w-11/12 max-w-lg p-6 relative" @click.stop>
+
+        <button @click="showHowToPlay = false" class="absolute top-3 right-3 text-lg">✕</button>
+
         <h2 class="text-xl font-bold mb-4">How to Play</h2>
-        <p>{{ currentGameData?.game_type_how_to?.content }}</p>
+
+        <p>
+          {{ currentGameData?.game_type_how_to?.content || 'Instructions not available' }}
+        </p>
+
       </div>
     </div>
 
@@ -96,9 +109,13 @@ const userStore = useUserStore();
 /* state */
 const currentGame = ref(0);
 const iframeKey = ref(0);
-const showHowToPlay = ref(false);
 const isSwitchingGame = ref(false);
 const userId = ref(null);
+const initialSequence = ref(null);
+
+const canGoUp = ref(false);
+const canGoDown = ref(true);
+const showHowToPlay = ref(false);
 
 /* computed */
 const games = computed(() => gameStore.games);
@@ -109,10 +126,11 @@ const currentGameData = computed(() => {
 });
 
 const iframeUrl = computed(() => {
-  if (!games.value.length) return "";
-
-  if (!userId.value) {
-    console.warn("⚠️ Warning: userId not available yet");
+  if (!games.value.length || !userId.value) {
+    console.warn("⚠️ Missing data for iframe:", {
+      games: games.value.length,
+      userId: userId.value
+    });
     return "";
   }
 
@@ -121,32 +139,40 @@ const iframeUrl = computed(() => {
 
 /* lifecycle */
 onMounted(async () => {
-  // ✅ Step 1: Create user first
+  // ✅ STEP 1: Create user
   await userStore.createUnsignedUser();
 
-  // ✅ Step 2: Get userId from store
-  userId.value = userStore.userId || localStorage.getItem("userId");
+  // ✅ STEP 2: Get userId
+  userId.value =
+    userStore.userId || localStorage.getItem("userId");
 
-  console.log("✅ GameArea mounted - userId:", userId.value);
-
-  // ✅ Step 3: Store userId in localStorage
+  // ✅ fallback safety
   if (userId.value) {
     localStorage.setItem("currentUserId", userId.value);
-    console.log("✅ userId stored in localStorage as 'currentUserId':", userId.value);
   }
 
-  // ✅ Step 4: Fetch games
+  // ❗ STOP if no userId
+  if (!userId.value) {
+    console.error("❌ userId missing");
+    return;
+  }
+
+  // ✅ STEP 3: Fetch games
   await gameStore.fetchGames();
+
+  const seq = games.value[0]?.publish_sequence_no;
+
+  // ✅ store initial sequence
+  initialSequence.value = seq;
+
+  canGoUp.value = false;
+  canGoDown.value = seq !== 1;
+
+  localStorage.setItem("current_sequence_no", seq);
 });
 
 /* URL BUILDER */
-/* URL BUILDER */
 const getGameUrl = (game, userId) => {
-  if (!userId) {
-    console.error("❌ getGameUrl: userId is empty");
-    return "";
-  }
-
   const url = new URL(game.game_url);
 
   if (!url.searchParams.has("quiz") && game.game_url.includes("trivia")) {
@@ -157,39 +183,33 @@ const getGameUrl = (game, userId) => {
     url.searchParams.set("seek", game._id);
   }
 
-  // ✅ CRITICAL: Pass user in URL
   url.searchParams.set("user", userId);
   url.searchParams.set("game_id", game._id);
 
   const finalUrl = url.toString();
 
-  // ✅ Debug: Log the exact URL being generated
-  console.log("✅ Generated iframe URL:", finalUrl);
-  console.log("   Includes user param?", url.searchParams.has("user"));
-  console.log("   user value:", url.searchParams.get("user"));
+  console.log("🎯 IFRAME URL:", finalUrl);
 
   return finalUrl;
 };
 
-/* iframe loaded → stop loader */
+/* iframe loaded */
 function onIframeLoaded() {
-  console.log("🔥 Iframe loaded, notifying child component");
-
   setTimeout(() => {
     const iframe = document.querySelector("iframe");
 
-    if (iframe && iframe.contentWindow) {
+    if (iframe?.contentWindow) {
       iframe.contentWindow.postMessage(
         { type: "USER_ID_READY", userId: userId.value },
         "*"
       );
-      console.log("✅ Sent userId to iframe via postMessage");
     }
 
     isSwitchingGame.value = false;
   }, 100);
 }
 
+/* date */
 function formatPublishDate(dateTime) {
   if (!dateTime) return "";
   return new Date(dateTime).toLocaleDateString("en-GB", {
@@ -199,13 +219,19 @@ function formatPublishDate(dateTime) {
   });
 }
 
-/* 🔥 SWITCH GAME */
-async function switchGame(direction, scrollDir = "none") {
+/* SWITCH GAME */
+async function switchGame(direction, scrollDir) {
   if (!games.value.length) return;
+
+  if (isSwitchingGame.value) return;
+
+  if (direction === "up" && !canGoUp.value) return;
+  if (direction === "down" && !canGoDown.value) return;
 
   isSwitchingGame.value = true;
 
-  const currentSequence = games.value[currentGame.value]?.publish_sequence_no;
+  const currentSequence =
+    games.value[currentGame.value]?.publish_sequence_no;
 
   try {
     const res = await axios.get(
@@ -219,13 +245,50 @@ async function switchGame(direction, scrollDir = "none") {
     );
 
     if (res.data) {
-      gameStore.games = [res.data];
+      const newGame = res.data;
+
+      gameStore.games = [newGame];
       currentGame.value = 0;
       iframeKey.value++;
+
+      const seq = newGame.publish_sequence_no;
+
+      // ✅ store sequence
+      localStorage.setItem("current_sequence_no", seq);
+
+      // ✅ DOWN logic
+      canGoDown.value = seq !== 1;
+
+      // ✅ UP logic (🔥 FIX)
+      if (seq === initialSequence.value) {
+        canGoUp.value = false; // back to first game
+      } else {
+        canGoUp.value = true;
+      }
+
+      console.log("✅ Loaded sequence:", seq);
     }
 
-  } catch (e) {
-    console.error("❌ API error:", e);
+  } catch (error) {
+    console.error("❌ Navigation failed:", error?.response?.status);
+
+    if (error.response?.status === 503 || error.response?.status === 404) {
+
+      if (direction === "up") {
+        // ❌ No more newer games
+        canGoUp.value = false;
+        canGoDown.value = true; // still can go down
+      }
+
+      if (direction === "down") {
+        // ❌ No more older games
+        canGoDown.value = false;
+        canGoUp.value = true; // still can go up
+      }
+
+      console.log(`🛑 No more games in ${direction.toUpperCase()}`);
+    }
+  } finally {
     isSwitchingGame.value = false;
   }
 }
