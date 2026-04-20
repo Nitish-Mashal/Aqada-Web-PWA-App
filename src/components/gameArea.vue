@@ -1,23 +1,47 @@
 <template>
   <div class="w-screen h-[100dvh] flex flex-col overflow-hidden relative bg-white">
 
-    <!-- 🔥 SPLASH SCREEN -->
-    <div v-if="isLoading || isSwitchingGame"
-      class="absolute inset-0 flex flex-col items-center justify-center bg-white z-50">
-
-      <img :src="AqadaImage" class="animate-pulse mb-4" />
-      <p class="text-gray-500 text-sm">Loading game...</p>
-    </div>
-
     <!-- GAME AREA -->
     <div class="flex-1 relative overflow-hidden">
-      <transition enter-active-class="transition-transform duration-500 ease-in-out"
-        enter-from-class="-translate-y-full" leave-active-class="transition-transform duration-500 ease-in-out"
-        leave-to-class="translate-y-full" mode="out-in">
-        <iframe v-if="iframeUrl" :key="iframeKey" :src="iframeUrl" class="w-full h-full border-0"
-          @load="onIframeLoaded" />
+      <transition :name="transitionName" mode="out-in">
+
+        <!-- WRAPPER (important for transition) -->
+        <div :key="iframeKey" class="w-full h-full relative">
+
+          <!-- IFRAME -->
+          <iframe v-if="iframeUrl" ref="iframeRef" :src="iframeUrl" class="w-full h-full border-0"
+            @load="onIframeLoaded" @error="onIframeError" />
+
+          <!-- 🔥 SPLASH -->
+          <div v-if="isLoading || isSwitchingGame"
+            class="absolute inset-0 flex items-center justify-center bg-white z-50">
+            <img :src="AqadaImage" class="animate-pulse" />
+          </div>
+
+        </div>
+
       </transition>
     </div>
+
+    <!-- ✅ BOTTOM INFO BAR (UNCHANGED UI) -->
+    <div class="absolute bottom-16 left-0 w-full z-40 px-4 pb-2">
+      <div class="bg-black/70 text-white text-sm rounded-lg px-3 py-2 text-center">
+
+        <span v-if="!isOnline" class="text-white">
+          Uh oh! No internet, no aqada
+        </span>
+
+        <span v-else-if="isAllGamesCompleted" class="text-white">
+          You have finished this game
+        </span>
+
+        <span v-else class="text-white">
+          {{ currentGameData?.short_description || "Play and enjoy the challenge!" }}
+        </span>
+
+      </div>
+    </div>
+
 
     <hr class="m-0" />
 
@@ -36,14 +60,11 @@
 
       <!-- TITLE -->
       <div v-if="games.length" class="absolute left-1/2 -translate-x-1/2 flex flex-col items-center text-center">
-
         <div class="flex items-center gap-2">
-
           <div class="text-lg font-semibold">
             {{ currentGameData.game_type_name }}
           </div>
 
-          <!-- ❓ How to play -->
           <button @click="showHowToPlay = true">
             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5"
               stroke="currentColor" class="w-6 h-6">
@@ -55,13 +76,11 @@
                 9 9 0 0 1 18 0Zm-9 5.25h.008v.008H12v-.008Z" />
             </svg>
           </button>
-
         </div>
 
         <div class="text-sm text-gray-500">
           {{ formatPublishDate(currentGameData.publish_date_time) }}
         </div>
-
       </div>
 
       <!-- DOWN -->
@@ -76,39 +95,37 @@
 
     </div>
 
-    <!-- ✅ HOW TO PLAY MODAL -->
+    <!-- HOW TO PLAY -->
     <div v-if="showHowToPlay" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-
       <div class="bg-white rounded-xl w-11/12 max-w-lg p-6 relative" @click.stop>
-
-        <button @click="showHowToPlay = false" class="absolute top-3 right-3 text-lg">✕</button>
+        <button @click="showHowToPlay = false" class="absolute top-3 right-3">✕</button>
 
         <h2 class="text-xl font-bold mb-4">How to Play</h2>
 
         <p>
           {{ currentGameData?.game_type_how_to?.content || 'Instructions not available' }}
         </p>
-
       </div>
     </div>
+
+
 
   </div>
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from "vue";
+import { ref, computed, onMounted, onBeforeUnmount } from "vue";
 import { useGameStore } from "../stores/useGameStore";
 import { useUserStore } from "../stores/useUserStore";
 import axios from "axios";
 import AqadaImage from "/Aqada.jpg";
 
-/* stores */
 const gameStore = useGameStore();
 const userStore = useUserStore();
 
-/* state */
 const currentGame = ref(0);
 const iframeKey = ref(0);
+const iframeRef = ref(null);
 const isSwitchingGame = ref(false);
 const userId = ref(null);
 const initialSequence = ref(null);
@@ -116,8 +133,12 @@ const initialSequence = ref(null);
 const canGoUp = ref(false);
 const canGoDown = ref(true);
 const showHowToPlay = ref(false);
+const transitionName = ref("slide-down");
 
-/* computed */
+/* ✅ NEW STATES */
+const isOnline = ref(navigator.onLine);
+
+/* ✅ COMPUTED */
 const games = computed(() => gameStore.games);
 const isLoading = computed(() => gameStore.isLoading);
 
@@ -125,83 +146,117 @@ const currentGameData = computed(() => {
   return games.value[currentGame.value] || {};
 });
 
-const iframeUrl = computed(() => {
-  if (!games.value.length || !userId.value) {
-    console.warn("⚠️ Missing data for iframe:", {
-      games: games.value.length,
-      userId: userId.value
+/* ✅ GAME COMPLETION */
+const isAllGamesCompleted = computed(() => {
+  return !canGoDown.value;
+});
+
+const markGameCompleted = (gameId) => {
+  if (!gameId) return;
+  localStorage.setItem(`game_completed_${gameId}`, "true");
+};
+
+/* ✅ INTERNET LISTENER */
+const updateOnlineStatus = async () => {
+  try {
+    await fetch("https://www.google.com/favicon.ico", {
+      method: "HEAD",
+      mode: "no-cors",
     });
-    return "";
+    isOnline.value = true;
+  } catch (e) {
+    isOnline.value = false;
+  }
+};
+
+/* ✅ IFRAME MESSAGE LISTENER */
+const handleMessage = (event) => {
+  try {
+    const origin = new URL(iframeUrl.value).origin;
+    if (event.origin !== origin) return;
+  } catch {
+    return;
   }
 
+  if (event.data?.type === "GAME_COMPLETED") {
+    markGameCompleted(event.data.gameId || currentGameData.value._id);
+  }
+};
+
+const getParamKeyFromUrl = (url) => {
+  const pathParts = url.pathname.split("/").filter(Boolean);
+  const ignore = ["games", "play", "app"];
+
+  for (let i = pathParts.length - 1; i >= 0; i--) {
+    if (!ignore.includes(pathParts[i])) {
+      return pathParts[i];
+    }
+  }
+
+  return pathParts[pathParts.length - 1];
+};
+
+const iframeUrl = computed(() => {
+  if (!games.value.length || !userId.value) return "";
   return getGameUrl(games.value[currentGame.value], userId.value);
 });
 
-/* lifecycle */
 onMounted(async () => {
-  // ✅ STEP 1: Create user
+  window.addEventListener("online", updateOnlineStatus);
+  window.addEventListener("offline", updateOnlineStatus);
+  window.addEventListener("message", handleMessage);
+
+  // 🔥 check immediately on load
+  await updateOnlineStatus();
+
   await userStore.createUnsignedUser();
 
-  // ✅ STEP 2: Get userId
   userId.value =
-    userStore.userId || localStorage.getItem("userId");
+    userStore.userId || localStorage.getItem("currentUserId");
 
-  // ✅ fallback safety
   if (userId.value) {
     localStorage.setItem("currentUserId", userId.value);
   }
 
-  // ❗ STOP if no userId
-  if (!userId.value) {
-    console.error("❌ userId missing");
-    return;
-  }
-
-  // ✅ STEP 3: Fetch games
   await gameStore.fetchGames();
 
   const seq = games.value[0]?.publish_sequence_no;
+  if (!seq) return;
 
-  // ✅ store initial sequence
   initialSequence.value = seq;
-
   canGoUp.value = false;
   canGoDown.value = seq !== 1;
-
-  localStorage.setItem("current_sequence_no", seq);
+  updateOnlineStatus(); // 👈 ADD THIS
 });
 
-/* URL BUILDER */
+onBeforeUnmount(() => {
+  window.removeEventListener("online", updateOnlineStatus);
+  window.removeEventListener("offline", updateOnlineStatus);
+  window.removeEventListener("message", handleMessage);
+});
+
 const getGameUrl = (game, userId) => {
   const url = new URL(game.game_url);
+  const paramKey = getParamKeyFromUrl(url);
 
-  if (!url.searchParams.has("quiz") && game.game_url.includes("trivia")) {
-    url.searchParams.set("quiz", game._id);
-  }
-
-  if (!url.searchParams.has("seek") && game.game_url.includes("seek")) {
-    url.searchParams.set("seek", game._id);
+  if (paramKey && !url.searchParams.has(paramKey)) {
+    url.searchParams.set(paramKey, game._id);
   }
 
   url.searchParams.set("user", userId);
   url.searchParams.set("game_id", game._id);
 
-  const finalUrl = url.toString();
-
-  console.log("🎯 IFRAME URL:", finalUrl);
-
-  return finalUrl;
+  return url.toString();
 };
 
-/* iframe loaded */
 function onIframeLoaded() {
   setTimeout(() => {
-    const iframe = document.querySelector("iframe");
+    const origin = new URL(iframeUrl.value).origin;
 
-    if (iframe?.contentWindow) {
-      iframe.contentWindow.postMessage(
+    if (iframeRef.value?.contentWindow) {
+      iframeRef.value.contentWindow.postMessage(
         { type: "USER_ID_READY", userId: userId.value },
-        "*"
+        origin
       );
     }
 
@@ -209,7 +264,10 @@ function onIframeLoaded() {
   }, 100);
 }
 
-/* date */
+function onIframeError() {
+  isSwitchingGame.value = false;
+}
+
 function formatPublishDate(dateTime) {
   if (!dateTime) return "";
   return new Date(dateTime).toLocaleDateString("en-GB", {
@@ -219,16 +277,18 @@ function formatPublishDate(dateTime) {
   });
 }
 
-/* SWITCH GAME */
 async function switchGame(direction, scrollDir) {
-  if (!games.value.length) return;
-
-  if (isSwitchingGame.value) return;
+  if (!games.value.length || isSwitchingGame.value) return;
 
   if (direction === "up" && !canGoUp.value) return;
   if (direction === "down" && !canGoDown.value) return;
 
+  transitionName.value = direction === "down"
+    ? "slide-up"
+    : "slide-down";
+
   isSwitchingGame.value = true;
+  iframeKey.value++;
 
   const currentSequence =
     games.value[currentGame.value]?.publish_sequence_no;
@@ -244,52 +304,58 @@ async function switchGame(direction, scrollDir) {
       }
     );
 
-    if (res.data) {
-      const newGame = res.data;
+    const newGame = res.data;
 
-      gameStore.games = [newGame];
-      currentGame.value = 0;
-      iframeKey.value++;
+    gameStore.games = [newGame];
+    currentGame.value = 0;
 
-      const seq = newGame.publish_sequence_no;
+    const seq = newGame.publish_sequence_no;
 
-      // ✅ store sequence
-      localStorage.setItem("current_sequence_no", seq);
-
-      // ✅ DOWN logic
-      canGoDown.value = seq !== 1;
-
-      // ✅ UP logic (🔥 FIX)
-      if (seq === initialSequence.value) {
-        canGoUp.value = false; // back to first game
-      } else {
-        canGoUp.value = true;
-      }
-
-      console.log("✅ Loaded sequence:", seq);
-    }
+    canGoDown.value = seq !== 1;
+    canGoUp.value = seq !== initialSequence.value;
 
   } catch (error) {
-    console.error("❌ Navigation failed:", error?.response?.status);
-
     if (error.response?.status === 503 || error.response?.status === 404) {
-
       if (direction === "up") {
-        // ❌ No more newer games
         canGoUp.value = false;
-        canGoDown.value = true; // still can go down
+        canGoDown.value = true;
       }
 
       if (direction === "down") {
-        // ❌ No more older games
         canGoDown.value = false;
-        canGoUp.value = true; // still can go up
+        canGoUp.value = true;
       }
-
-      console.log(`🛑 No more games in ${direction.toUpperCase()}`);
     }
   } finally {
     isSwitchingGame.value = false;
   }
 }
 </script>
+
+<style>
+.slide-down-enter-active,
+.slide-down-leave-active {
+  transition: transform 0.5s ease-in-out;
+}
+
+.slide-down-enter-from {
+  transform: translateY(100%);
+}
+
+.slide-down-leave-to {
+  transform: translateY(-100%);
+}
+
+.slide-up-enter-active,
+.slide-up-leave-active {
+  transition: transform 0.5s ease-in-out;
+}
+
+.slide-up-enter-from {
+  transform: translateY(-100%);
+}
+
+.slide-up-leave-to {
+  transform: translateY(100%);
+}
+</style>
