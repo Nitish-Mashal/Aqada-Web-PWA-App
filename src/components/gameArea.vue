@@ -176,6 +176,13 @@ const initialSequence = ref(null);
 let postMessageTimer = null;
 let completedCheckTimer = null;
 
+/* =========================================
+✅ NEW: REACTIVE COMPLETED STATE
+========================================= */
+const completedGames = ref(
+  JSON.parse(localStorage.getItem("completed") || "[]")
+);
+
 /* COMPUTED */
 const games = computed(() => gameStore.games);
 const isLoading = computed(() => gameStore.isLoading);
@@ -184,17 +191,12 @@ const currentGameData = computed(() => {
   return games.value[currentGame.value] || {};
 });
 
-/* ===================================
-CURRENT GAME COMPLETED MESSAGE
-=================================== */
+/* =========================================
+✅ UPDATED: USE REACTIVE STATE
+========================================= */
 const isCurrentGameCompleted = computed(() => {
-  const completed = JSON.parse(
-    localStorage.getItem("completed") || "[]"
-  );
-
   const currentId = currentGameData.value?._id;
-
-  return completed.includes(currentId);
+  return completedGames.value.includes(currentId);
 });
 
 /* HELP */
@@ -233,11 +235,7 @@ function getParamKeyFromUrl(url) {
 
   const ignore = ["games", "play", "app"];
 
-  for (
-    let i = pathParts.length - 1;
-    i >= 0;
-    i--
-  ) {
+  for (let i = pathParts.length - 1; i >= 0; i--) {
     if (!ignore.includes(pathParts[i])) {
       return pathParts[i];
     }
@@ -251,14 +249,8 @@ function getGameUrl(game, uid) {
 
   const paramKey = getParamKeyFromUrl(url);
 
-  if (
-    paramKey &&
-    !url.searchParams.has(paramKey)
-  ) {
-    url.searchParams.set(
-      paramKey,
-      game._id
-    );
+  if (paramKey && !url.searchParams.has(paramKey)) {
+    url.searchParams.set(paramKey, game._id);
   }
 
   url.searchParams.set("user", uid);
@@ -268,10 +260,7 @@ function getGameUrl(game, uid) {
 }
 
 const iframeUrl = computed(() => {
-  if (
-    !games.value.length ||
-    !userId.value
-  ) {
+  if (!games.value.length || !userId.value) {
     return "";
   }
 
@@ -281,54 +270,41 @@ const iframeUrl = computed(() => {
   );
 });
 
-/* ===================================
-SAVE COMPLETED GAME
-=================================== */
+/* =========================================
+✅ UPDATED: SAVE WITH REACTIVE UPDATE
+========================================= */
 function saveCompletedGame(gameId) {
   if (!gameId) return;
 
-  const completed = JSON.parse(
-    localStorage.getItem("completed") || "[]"
-  );
-
-  if (!completed.includes(gameId)) {
-    completed.push(gameId);
+  if (!completedGames.value.includes(gameId)) {
+    completedGames.value.push(gameId);
 
     localStorage.setItem(
       "completed",
-      JSON.stringify(completed)
+      JSON.stringify(completedGames.value)
     );
   }
 }
 
-/* ===================================
-WATCH CHILD GAME COMPLETE
-=================================== */
+/* =========================================
+CHECK CHILD GAME COMPLETION
+========================================= */
 function checkCompletedGame() {
-  const completedGameId =
-    localStorage.getItem(
-      "completed_game_id"
-    );
+  const completedGameId = localStorage.getItem("completed_game_id");
 
   if (!completedGameId) return;
 
   saveCompletedGame(completedGameId);
 
-  localStorage.removeItem(
-    "completed_game_id"
-  );
+  localStorage.removeItem("completed_game_id");
 }
 
 /* IFRAME */
 function sendUserIdToIframe() {
-  if (!iframeRef.value?.contentWindow)
-    return;
-
+  if (!iframeRef.value?.contentWindow) return;
   if (!iframeUrl.value) return;
 
-  const origin = new URL(
-    iframeUrl.value
-  ).origin;
+  const origin = new URL(iframeUrl.value).origin;
 
   iframeRef.value.contentWindow.postMessage(
     {
@@ -364,43 +340,25 @@ function onIframeError() {
 
 /* STORAGE */
 function setCurrentSequence(seq) {
-  localStorage.setItem(
-    "current_sequence_no",
-    Number(seq)
-  );
+  localStorage.setItem("current_sequence_no", Number(seq));
 }
 
 /* SWITCH GAME */
-async function switchGame(
-  direction,
-  scrollDir
-) {
+async function switchGame(direction, scrollDir) {
   if (!games.value.length) return;
   if (isSwitchingGame.value) return;
 
-  if (
-    direction === "up" &&
-    !canGoUp.value
-  )
-    return;
-
-  if (
-    direction === "down" &&
-    !canGoDown.value
-  )
-    return;
+  if (direction === "up" && !canGoUp.value) return;
+  if (direction === "down" && !canGoDown.value) return;
 
   transitionName.value =
-    direction === "down"
-      ? "slide-up"
-      : "slide-down";
+    direction === "down" ? "slide-up" : "slide-down";
 
   isSwitchingGame.value = true;
   iframeKey.value++;
 
   const currentSequence = Number(
-    currentGameData.value
-      .publish_sequence_no
+    currentGameData.value.publish_sequence_no
   );
 
   try {
@@ -419,23 +377,14 @@ async function switchGame(
     gameStore.games = [newGame];
     currentGame.value = 0;
 
-    localStorage.setItem(
-      "gameId",
-      newGame._id
-    );
+    localStorage.setItem("gameId", newGame._id);
 
-    const newSeq = Number(
-      newGame.publish_sequence_no
-    );
+    const newSeq = Number(newGame.publish_sequence_no);
 
     setCurrentSequence(newSeq);
 
-    canGoUp.value =
-      newSeq !==
-      initialSequence.value;
-
-    canGoDown.value =
-      newSeq !== 1;
+    canGoUp.value = newSeq !== initialSequence.value;
+    canGoDown.value = newSeq !== 1;
 
     await nextTick();
 
@@ -450,15 +399,8 @@ async function switchGame(
 onMounted(async () => {
   checkFirstVisit();
 
-  if (
-    !localStorage.getItem(
-      "completed"
-    )
-  ) {
-    localStorage.setItem(
-      "completed",
-      "[]"
-    );
+  if (!localStorage.getItem("completed")) {
+    localStorage.setItem("completed", "[]");
   }
 
   await userStore.createUnsignedUser();
@@ -469,40 +411,30 @@ onMounted(async () => {
 
   await gameStore.fetchGames();
 
-  const firstGame =
-    games.value[0];
-
+  const firstGame = games.value[0];
   if (!firstGame) return;
 
-  localStorage.setItem(
-    "gameId",
-    firstGame._id
-  );
+  localStorage.setItem("gameId", firstGame._id);
 
-  const seq = Number(
-    firstGame.publish_sequence_no
-  );
+  const seq = Number(firstGame.publish_sequence_no);
 
   initialSequence.value = seq;
 
   setCurrentSequence(seq);
 
   canGoUp.value = false;
-  canGoDown.value =
-    seq !== 1;
+  canGoDown.value = seq !== 1;
 
-  completedCheckTimer =
-    setInterval(() => {
-      checkCompletedGame();
-    }, 1000);
+  /* check every second (works fine now because reactive state added) */
+  completedCheckTimer = setInterval(() => {
+    checkCompletedGame();
+  }, 1000);
 });
 
 /* UNMOUNT */
 onBeforeUnmount(() => {
   clearInterval(postMessageTimer);
-  clearInterval(
-    completedCheckTimer
-  );
+  clearInterval(completedCheckTimer);
 });
 </script>
 
