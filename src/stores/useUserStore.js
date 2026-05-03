@@ -20,13 +20,30 @@ export const useUserStore = defineStore("user", {
 
                 if (response?.data) {
                     this.userId = response.data;
-                    localStorage.setItem("userId", this.userId);
 
-                    console.log("✅ Unsigned user created:", this.userId);
+                    /* Only one localStorage key */
+                    localStorage.setItem(
+                        "userId",
+                        this.userId
+                    );
+
+                    /* remove old duplicate key once */
+                    localStorage.removeItem(
+                        "currentUserId"
+                    );
+
+                    console.log(
+                        "✅ Unsigned user created:",
+                        this.userId
+                    );
+
                     return this.userId;
                 }
             } catch (error) {
-                console.error("❌ User creation failed:", error);
+                console.error(
+                    "❌ User creation failed:",
+                    error
+                );
             }
         },
     },

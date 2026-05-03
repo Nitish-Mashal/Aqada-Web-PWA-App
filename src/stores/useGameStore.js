@@ -26,10 +26,24 @@ export const useGameStore = defineStore("gameStore", {
           (a, b) => a.publish_sequence_no - b.publish_sequence_no
         );
 
-        // ✅ STORE sequence
+        /* ===============================
+           SAVE INITIAL GAME DATA
+        ================================= */
+
         if (this.games.length) {
-          const sequence = this.games[0].publish_sequence_no;
-          localStorage.setItem("current_sequence_no", sequence);
+          const firstGame = this.games[0];
+
+          /* save sequence */
+          localStorage.setItem(
+            "current_sequence_no",
+            firstGame.publish_sequence_no
+          );
+
+          /* ✅ save gameId */
+          localStorage.setItem(
+            "gameId",
+            firstGame._id
+          );
         }
 
       } catch (error) {

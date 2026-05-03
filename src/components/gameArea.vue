@@ -1,47 +1,69 @@
 <template>
   <div class="w-screen h-[100dvh] flex flex-col overflow-hidden relative bg-white">
 
+    <!-- FIRST TIME HELP OVERLAY -->
+    <div v-if="showHelpOverlay" class="fixed inset-0 bg-black/70 z-[999] flex items-center justify-center px-4">
+      <div class="bg-white rounded-2xl w-full max-w-md p-6 relative shadow-xl">
+        <h2 class="text-xl font-bold text-center mb-5">
+          Welcome to Aqada 🎮
+        </h2>
+
+        <div class="space-y-4 text-sm text-gray-700">
+          <div class="border rounded-xl p-4">
+            <div class="font-semibold mb-1">📘 Game Instructions</div>
+            <p>
+              Tap the <b>?</b> icon beside the game title to view how to play.
+            </p>
+          </div>
+
+          <div class="border rounded-xl p-4">
+            <div class="font-semibold mb-1">⬆️⬇️ Browse More Games</div>
+            <p>
+              Use the <b>Up</b> and <b>Down</b> buttons at the bottom to move
+              between games.
+            </p>
+          </div>
+        </div>
+
+        <button @click="closeHelpOverlay" class="mt-6 w-full bg-black text-white py-2 rounded-xl font-medium">
+          Got it
+        </button>
+      </div>
+    </div>
+
     <!-- GAME AREA -->
     <div class="flex-1 relative overflow-hidden">
       <transition :name="transitionName" mode="out-in">
-
-        <!-- WRAPPER (important for transition) -->
         <div :key="iframeKey" class="w-full h-full relative">
 
           <!-- IFRAME -->
           <iframe v-if="iframeUrl" ref="iframeRef" :src="iframeUrl" class="w-full h-full border-0"
             @load="onIframeLoaded" @error="onIframeError" />
 
-          <!-- 🔥 SPLASH -->
+          <!-- LOADING -->
           <div v-if="isLoading || isSwitchingGame"
             class="absolute inset-0 flex items-center justify-center bg-white z-50">
             <img :src="AqadaImage" class="animate-pulse" />
           </div>
 
         </div>
-
       </transition>
     </div>
 
-    <!-- ✅ BOTTOM INFO BAR (UNCHANGED UI) -->
+    <!-- BOTTOM BAR -->
     <div class="absolute bottom-16 left-0 w-full z-40 px-4 pb-2">
-      <div class="bg-black/70 text-white text-sm rounded-lg px-3 py-2 text-center">
+      <div class="bg-black/70 text-sm rounded-lg px-3 py-2 text-center text-white">
 
-        <span v-if="!isOnline" class="text-white">
-          Uh oh! No internet, no aqada
-        </span>
-
-        <span v-else-if="isAllGamesCompleted" class="text-white">
-          You have finished this game
+        <span v-if="isCurrentGameCompleted" class="text-white">
+          You have finished this game 🎉
         </span>
 
         <span v-else class="text-white">
-          {{ currentGameData?.short_description || "Play and enjoy the challenge!" }}
+          Play and enjoy 🎮
         </span>
 
       </div>
     </div>
-
 
     <hr class="m-0" />
 
@@ -96,49 +118,65 @@
     </div>
 
     <!-- HOW TO PLAY -->
-    <div v-if="showHowToPlay" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+    <div v-if="showHowToPlay" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
       <div class="bg-white rounded-xl w-11/12 max-w-lg p-6 relative" @click.stop>
-        <button @click="showHowToPlay = false" class="absolute top-3 right-3">✕</button>
+        <button @click="showHowToPlay = false" class="absolute top-3 right-3">
+          ✕
+        </button>
 
         <h2 class="text-xl font-bold mb-4">How to Play</h2>
 
         <p>
-          {{ currentGameData?.game_type_how_to?.content || 'Instructions not available' }}
+          {{
+            currentGameData?.game_type_how_to?.content ||
+            "Instructions not available"
+          }}
         </p>
       </div>
     </div>
-
-
 
   </div>
 </template>
 
 <script setup>
-import { ref, computed, onMounted, onBeforeUnmount } from "vue";
-import { useGameStore } from "../stores/useGameStore";
-import { useUserStore } from "../stores/useUserStore";
+import {
+  ref,
+  computed,
+  onMounted,
+  onBeforeUnmount,
+  nextTick
+} from "vue";
+
 import axios from "axios";
 import AqadaImage from "/Aqada.jpg";
+
+import { useGameStore } from "../stores/useGameStore";
+import { useUserStore } from "../stores/useUserStore";
 
 const gameStore = useGameStore();
 const userStore = useUserStore();
 
+/* STATE */
 const currentGame = ref(0);
 const iframeKey = ref(0);
 const iframeRef = ref(null);
+
 const isSwitchingGame = ref(false);
 const userId = ref(null);
-const initialSequence = ref(null);
 
 const canGoUp = ref(false);
 const canGoDown = ref(true);
+
 const showHowToPlay = ref(false);
-const transitionName = ref("slide-down");
+const showHelpOverlay = ref(false);
 
-/* ✅ NEW STATES */
-const isOnline = ref(navigator.onLine);
+const transitionName = ref("slide-up");
+const initialSequence = ref(null);
 
-/* ✅ COMPUTED */
+let postMessageTimer = null;
+let completedCheckTimer = null;
+
+/* COMPUTED */
 const games = computed(() => gameStore.games);
 const isLoading = computed(() => gameStore.isLoading);
 
@@ -146,152 +184,224 @@ const currentGameData = computed(() => {
   return games.value[currentGame.value] || {};
 });
 
-/* ✅ GAME COMPLETION */
-const isAllGamesCompleted = computed(() => {
-  return !canGoDown.value;
+/* ===================================
+CURRENT GAME COMPLETED MESSAGE
+=================================== */
+const isCurrentGameCompleted = computed(() => {
+  const completed = JSON.parse(
+    localStorage.getItem("completed") || "[]"
+  );
+
+  const currentId = currentGameData.value?._id;
+
+  return completed.includes(currentId);
 });
 
-const markGameCompleted = (gameId) => {
-  if (!gameId) return;
-  localStorage.setItem(`game_completed_${gameId}`, "true");
-};
+/* HELP */
+function checkFirstVisit() {
+  const seen = localStorage.getItem("aqada_help_seen");
 
-/* ✅ INTERNET LISTENER */
-const updateOnlineStatus = async () => {
-  try {
-    await fetch("https://www.google.com/favicon.ico", {
-      method: "HEAD",
-      mode: "no-cors",
-    });
-    isOnline.value = true;
-  } catch (e) {
-    isOnline.value = false;
+  if (!seen) {
+    showHelpOverlay.value = true;
   }
-};
+}
 
-/* ✅ IFRAME MESSAGE LISTENER */
-const handleMessage = (event) => {
-  try {
-    const origin = new URL(iframeUrl.value).origin;
-    if (event.origin !== origin) return;
-  } catch {
-    return;
-  }
+function closeHelpOverlay() {
+  showHelpOverlay.value = false;
+  localStorage.setItem("aqada_help_seen", "true");
+}
 
-  if (event.data?.type === "GAME_COMPLETED") {
-    markGameCompleted(event.data.gameId || currentGameData.value._id);
-  }
-};
+/* DATE */
+function formatPublishDate(dateTime) {
+  if (!dateTime) return "";
 
-const getParamKeyFromUrl = (url) => {
-  const pathParts = url.pathname.split("/").filter(Boolean);
+  return new Date(dateTime).toLocaleDateString(
+    "en-GB",
+    {
+      day: "2-digit",
+      month: "short",
+      year: "numeric"
+    }
+  );
+}
+
+/* URL */
+function getParamKeyFromUrl(url) {
+  const pathParts = url.pathname
+    .split("/")
+    .filter(Boolean);
+
   const ignore = ["games", "play", "app"];
 
-  for (let i = pathParts.length - 1; i >= 0; i--) {
+  for (
+    let i = pathParts.length - 1;
+    i >= 0;
+    i--
+  ) {
     if (!ignore.includes(pathParts[i])) {
       return pathParts[i];
     }
   }
 
   return pathParts[pathParts.length - 1];
-};
+}
 
-const iframeUrl = computed(() => {
-  if (!games.value.length || !userId.value) return "";
-  return getGameUrl(games.value[currentGame.value], userId.value);
-});
-
-onMounted(async () => {
-  window.addEventListener("online", updateOnlineStatus);
-  window.addEventListener("offline", updateOnlineStatus);
-  window.addEventListener("message", handleMessage);
-
-  // 🔥 check immediately on load
-  await updateOnlineStatus();
-
-  await userStore.createUnsignedUser();
-
-  userId.value =
-    userStore.userId || localStorage.getItem("currentUserId");
-
-  if (userId.value) {
-    localStorage.setItem("currentUserId", userId.value);
-  }
-
-  await gameStore.fetchGames();
-
-  const seq = games.value[0]?.publish_sequence_no;
-  if (!seq) return;
-
-  initialSequence.value = seq;
-  canGoUp.value = false;
-  canGoDown.value = seq !== 1;
-  updateOnlineStatus(); // 👈 ADD THIS
-});
-
-onBeforeUnmount(() => {
-  window.removeEventListener("online", updateOnlineStatus);
-  window.removeEventListener("offline", updateOnlineStatus);
-  window.removeEventListener("message", handleMessage);
-});
-
-const getGameUrl = (game, userId) => {
+function getGameUrl(game, uid) {
   const url = new URL(game.game_url);
+
   const paramKey = getParamKeyFromUrl(url);
 
-  if (paramKey && !url.searchParams.has(paramKey)) {
-    url.searchParams.set(paramKey, game._id);
+  if (
+    paramKey &&
+    !url.searchParams.has(paramKey)
+  ) {
+    url.searchParams.set(
+      paramKey,
+      game._id
+    );
   }
 
-  url.searchParams.set("user", userId);
+  url.searchParams.set("user", uid);
   url.searchParams.set("game_id", game._id);
 
   return url.toString();
-};
-
-function onIframeLoaded() {
-  setTimeout(() => {
-    const origin = new URL(iframeUrl.value).origin;
-
-    if (iframeRef.value?.contentWindow) {
-      iframeRef.value.contentWindow.postMessage(
-        { type: "USER_ID_READY", userId: userId.value },
-        origin
-      );
-    }
-
-    isSwitchingGame.value = false;
-  }, 100);
 }
 
-function onIframeError() {
+const iframeUrl = computed(() => {
+  if (
+    !games.value.length ||
+    !userId.value
+  ) {
+    return "";
+  }
+
+  return getGameUrl(
+    games.value[currentGame.value],
+    userId.value
+  );
+});
+
+/* ===================================
+SAVE COMPLETED GAME
+=================================== */
+function saveCompletedGame(gameId) {
+  if (!gameId) return;
+
+  const completed = JSON.parse(
+    localStorage.getItem("completed") || "[]"
+  );
+
+  if (!completed.includes(gameId)) {
+    completed.push(gameId);
+
+    localStorage.setItem(
+      "completed",
+      JSON.stringify(completed)
+    );
+  }
+}
+
+/* ===================================
+WATCH CHILD GAME COMPLETE
+=================================== */
+function checkCompletedGame() {
+  const completedGameId =
+    localStorage.getItem(
+      "completed_game_id"
+    );
+
+  if (!completedGameId) return;
+
+  saveCompletedGame(completedGameId);
+
+  localStorage.removeItem(
+    "completed_game_id"
+  );
+}
+
+/* IFRAME */
+function sendUserIdToIframe() {
+  if (!iframeRef.value?.contentWindow)
+    return;
+
+  if (!iframeUrl.value) return;
+
+  const origin = new URL(
+    iframeUrl.value
+  ).origin;
+
+  iframeRef.value.contentWindow.postMessage(
+    {
+      type: "USER_ID_READY",
+      userId: userId.value
+    },
+    origin
+  );
+}
+
+function onIframeLoaded() {
+  clearInterval(postMessageTimer);
+
+  let count = 0;
+
+  postMessageTimer = setInterval(() => {
+    sendUserIdToIframe();
+
+    count++;
+
+    if (count >= 6) {
+      clearInterval(postMessageTimer);
+    }
+  }, 500);
+
   isSwitchingGame.value = false;
 }
 
-function formatPublishDate(dateTime) {
-  if (!dateTime) return "";
-  return new Date(dateTime).toLocaleDateString("en-GB", {
-    day: "2-digit",
-    month: "short",
-    year: "numeric",
-  });
+function onIframeError() {
+  clearInterval(postMessageTimer);
+  isSwitchingGame.value = false;
 }
 
-async function switchGame(direction, scrollDir) {
-  if (!games.value.length || isSwitchingGame.value) return;
+/* STORAGE */
+function setCurrentSequence(seq) {
+  localStorage.setItem(
+    "current_sequence_no",
+    Number(seq)
+  );
+}
 
-  if (direction === "up" && !canGoUp.value) return;
-  if (direction === "down" && !canGoDown.value) return;
+/* SWITCH GAME */
+async function switchGame(
+  direction,
+  scrollDir
+) {
+  if (!games.value.length) return;
+  if (isSwitchingGame.value) return;
 
-  transitionName.value = direction === "down"
-    ? "slide-up"
-    : "slide-down";
+  if (
+    direction === "up" &&
+    !canGoUp.value
+  )
+    return;
+
+  if (
+    direction === "down" &&
+    !canGoDown.value
+  )
+    return;
+
+  transitionName.value =
+    direction === "down"
+      ? "slide-up"
+      : "slide-down";
 
   isSwitchingGame.value = true;
   iframeKey.value++;
 
-  const currentSequence =
-    games.value[currentGame.value]?.publish_sequence_no;
+  const currentSequence = Number(
+    currentGameData.value
+      .publish_sequence_no
+  );
 
   try {
     const res = await axios.get(
@@ -299,8 +409,8 @@ async function switchGame(direction, scrollDir) {
       {
         params: {
           sequence: currentSequence,
-          scroll: scrollDir,
-        },
+          scroll: scrollDir
+        }
       }
     );
 
@@ -309,53 +419,124 @@ async function switchGame(direction, scrollDir) {
     gameStore.games = [newGame];
     currentGame.value = 0;
 
-    const seq = newGame.publish_sequence_no;
+    localStorage.setItem(
+      "gameId",
+      newGame._id
+    );
 
-    canGoDown.value = seq !== 1;
-    canGoUp.value = seq !== initialSequence.value;
+    const newSeq = Number(
+      newGame.publish_sequence_no
+    );
+
+    setCurrentSequence(newSeq);
+
+    canGoUp.value =
+      newSeq !==
+      initialSequence.value;
+
+    canGoDown.value =
+      newSeq !== 1;
+
+    await nextTick();
 
   } catch (error) {
-    if (error.response?.status === 503 || error.response?.status === 404) {
-      if (direction === "up") {
-        canGoUp.value = false;
-        canGoDown.value = true;
-      }
-
-      if (direction === "down") {
-        canGoDown.value = false;
-        canGoUp.value = true;
-      }
-    }
+    console.error(error);
   } finally {
     isSwitchingGame.value = false;
   }
 }
+
+/* MOUNT */
+onMounted(async () => {
+  checkFirstVisit();
+
+  if (
+    !localStorage.getItem(
+      "completed"
+    )
+  ) {
+    localStorage.setItem(
+      "completed",
+      "[]"
+    );
+  }
+
+  await userStore.createUnsignedUser();
+
+  userId.value =
+    userStore.userId ||
+    localStorage.getItem("userId");
+
+  await gameStore.fetchGames();
+
+  const firstGame =
+    games.value[0];
+
+  if (!firstGame) return;
+
+  localStorage.setItem(
+    "gameId",
+    firstGame._id
+  );
+
+  const seq = Number(
+    firstGame.publish_sequence_no
+  );
+
+  initialSequence.value = seq;
+
+  setCurrentSequence(seq);
+
+  canGoUp.value = false;
+  canGoDown.value =
+    seq !== 1;
+
+  completedCheckTimer =
+    setInterval(() => {
+      checkCompletedGame();
+    }, 1000);
+});
+
+/* UNMOUNT */
+onBeforeUnmount(() => {
+  clearInterval(postMessageTimer);
+  clearInterval(
+    completedCheckTimer
+  );
+});
 </script>
 
-<style>
+<style scoped>
+.slide-up-enter-active,
+.slide-up-leave-active,
 .slide-down-enter-active,
 .slide-down-leave-active {
-  transition: transform 0.5s ease-in-out;
-}
-
-.slide-down-enter-from {
-  transform: translateY(100%);
-}
-
-.slide-down-leave-to {
-  transform: translateY(-100%);
-}
-
-.slide-up-enter-active,
-.slide-up-leave-active {
-  transition: transform 0.5s ease-in-out;
+  transition: all 0.45s ease;
+  position: absolute;
+  inset: 0;
 }
 
 .slide-up-enter-from {
-  transform: translateY(-100%);
+  transform: translateY(100%);
+}
+
+.slide-up-enter-to {
+  transform: translateY(0%);
 }
 
 .slide-up-leave-to {
+  transform: translateY(-100%);
+}
+
+.slide-down-enter-from {
+  transform: translateY(-100%);
+}
+
+.slide-down-enter-to {
+  transform: translateY(0%);
+}
+
+.slide-down-leave-to {
   transform: translateY(100%);
 }
 </style>
