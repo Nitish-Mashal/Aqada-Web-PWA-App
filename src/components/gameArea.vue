@@ -11,13 +11,40 @@
         <div class="space-y-4 text-sm text-gray-700">
           <div class="border rounded-xl p-4">
             <div class="font-semibold mb-1">📘 Game Instructions</div>
-            <p>
-              Tap the <b>?</b> icon beside the game title to view how to play.
-            </p>
+            <div>
+              Tap the
+              <span class="inline-flex items-center whitespace-nowrap">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5"
+                  stroke="currentColor" class="w-5 h-5">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M9.879 7.519c1.171-1.025 3.071-1.025 4.242 0
+        1.172 1.025 1.172 2.687 0 3.712
+        -.203.179-.43.326-.67.442
+        -.745.361-1.45.999-1.45 1.827v.75
+        M21 12a9 9 0 1 1-18 0
+        9 9 0 0 1 18 0Zm-9 5.25h.008v.008H12v-.008Z" />
+                </svg>
+
+              </span>
+              icon beside the game title to view how to play.
+            </div>
           </div>
 
           <div class="border rounded-xl p-4">
-            <div class="font-semibold mb-1">⬆️⬇️ Browse More Games</div>
+            <div class="font-semibold mb-1 flex items-center gap-2">
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5"
+                stroke="currentColor" class="w-6 h-6">
+                <path stroke-linecap="round" stroke-linejoin="round"
+                  d="m15 11.25-3-3m0 0-3 3m3-3v7.5M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
+              </svg>
+
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5"
+                stroke="currentColor" class="w-6 h-6">
+                <path stroke-linecap="round" stroke-linejoin="round" d="m9 12.75 3 3m0 0 3-3m-3 3v-7.5M21 12a9 9 0 1 1-18 0
+      9 9 0 0 1 18 0Z" />
+              </svg>
+
+              <span>Browse More Games</span>
+            </div>
             <p>
               Use the <b>Up</b> and <b>Down</b> buttons at the bottom to move
               between games.
@@ -51,7 +78,7 @@
     </div>
 
     <!-- BOTTOM BAR -->
-    <div class="absolute bottom-16 left-0 w-full z-40 px-4 pb-2">
+    <!-- <div class="absolute bottom-16 left-0 w-full z-40 px-4 pb-2">
       <div class="bg-black/70 text-sm rounded-lg px-3 py-2 text-center text-white">
 
         <span v-if="isCurrentGameCompleted" class="text-white">
@@ -61,6 +88,28 @@
         <span v-else class="text-white">
           Play and enjoy 🎮
         </span>
+
+      </div>
+    </div> -->
+    <!-- BOTTOM BAR -->
+    <div class="absolute bottom-16 left-0 w-full z-40 px-4 pb-2">
+      <div class="bg-black/70 text-sm rounded-lg px-3 py-2 text-center text-white">
+
+        <!-- 🔴 OFFLINE OR GAME NOT LOADED -->
+        <span v-if="isOffline || (!isLoading && !iframeUrl)" class="text-white">
+          Uh oh! No internet, no aqada 😕
+        </span>
+
+        <!-- 🟢 EXISTING LOGIC (unchanged) -->
+        <template v-else>
+          <span v-if="isCurrentGameCompleted" class="text-white">
+            You have finished this game 🎉
+          </span>
+
+          <span v-else class="text-white">
+            Play and enjoy 🎮
+          </span>
+        </template>
 
       </div>
     </div>
@@ -126,12 +175,13 @@
 
         <h2 class="text-xl font-bold mb-4">How to Play</h2>
 
-        <p>
+        <!-- <p>
           {{
             currentGameData?.game_type_how_to?.content ||
             "Instructions not available"
           }}
-        </p>
+        </p> -->
+        <p v-html="currentGameData?.game_type_how_to?.content || 'Instructions not available'"></p>
       </div>
     </div>
 
@@ -152,6 +202,8 @@ import AqadaImage from "/Aqada.jpg";
 
 import { useGameStore } from "../stores/useGameStore";
 import { useUserStore } from "../stores/useUserStore";
+
+const isOffline = ref(!navigator.onLine);
 
 const gameStore = useGameStore();
 const userStore = useUserStore();
@@ -175,6 +227,11 @@ const initialSequence = ref(null);
 
 let postMessageTimer = null;
 let completedCheckTimer = null;
+
+const showNoInternetScreen = computed(() => {
+  return isOffline.value || (!isLoading.value && !iframeUrl.value);
+});
+
 
 /* =========================================
 ✅ NEW: REACTIVE COMPLETED STATE
@@ -226,6 +283,21 @@ function formatPublishDate(dateTime) {
     }
   );
 }
+
+// NETWORK STATUS
+function updateNetworkStatus() {
+  isOffline.value = !navigator.onLine;
+}
+
+onMounted(() => {
+  window.addEventListener("online", updateNetworkStatus);
+  window.addEventListener("offline", updateNetworkStatus);
+});
+
+onBeforeUnmount(() => {
+  window.removeEventListener("online", updateNetworkStatus);
+  window.removeEventListener("offline", updateNetworkStatus);
+});
 
 /* URL */
 function getParamKeyFromUrl(url) {
