@@ -1,12 +1,24 @@
 import { createRouter, createWebHistory } from 'vue-router';
 import Login from './components/Login.vue';
 import gameArea from './components/gameArea.vue'
+import privacypolicy from './components/privacy-policy.vue'
+import termscondition from './components/terms-and-conditions.vue'
 
 const routes = [
   {
     path: '/aqada',
     name: 'gameArea',
     component: gameArea,
+  },
+  {
+    path: '/aqada/privacy-policy',
+    name: 'privacyPolicy',
+    component: privacypolicy,
+  },
+  {
+    path: '/aqada/terms-of-use',
+    name: 'termsConditions',
+    component: termscondition,
   },
 
 

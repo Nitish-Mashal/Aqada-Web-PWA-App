@@ -1,5 +1,5 @@
 <template>
-  <div class="w-screen h-[100dvh] flex flex-col overflow-hidden relative bg-white">
+  <div class="w-screen h-screen flex flex-col overflow-hidden relative bg-white min-h-[100vh]">
 
     <!-- FIRST TIME HELP OVERLAY -->
     <div v-if="showHelpOverlay" class="fixed inset-0 bg-black/70 z-[999] flex items-center justify-center px-4">
@@ -60,37 +60,57 @@
 
     <!-- GAME AREA -->
     <div class="flex-1 relative overflow-hidden">
-      <transition :name="transitionName" mode="out-in">
-        <div :key="iframeKey" class="w-full h-full relative">
 
-          <!-- IFRAME -->
-          <iframe v-if="iframeUrl" ref="iframeRef" :src="iframeUrl" class="w-full h-full border-0"
-            @load="onIframeLoaded" @error="onIframeError" />
+      <!-- SETTINGS + SHARE -->
+      <div class="absolute top-4 right-4 z-50 flex items-center gap-2">
 
-          <!-- LOADING -->
-          <div v-if="isLoading || isSwitchingGame"
-            class="absolute inset-0 flex items-center justify-center bg-white z-50">
-            <img :src="AqadaImage" class="animate-pulse" />
-          </div>
+        <!-- SETTINGS -->
+        <button @click="openSettings" class="p-2 active:scale-95 transition">
+          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5"
+            stroke="currentColor" class="size-6">
+            <path stroke-linecap="round" stroke-linejoin="round"
+              d="m11.25 11.25.041-.02a.75.75 0 0 1 1.063.852l-.708 2.836a.75.75 0 0 0 1.063.853l.041-.021M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Zm-9-3.75h.008v.008H12V8.25Z" />
+          </svg>
 
-        </div>
-      </transition>
-    </div>
+        </button>
 
-    <!-- BOTTOM BAR -->
-    <!-- <div class="absolute bottom-16 left-0 w-full z-40 px-4 pb-2">
-      <div class="bg-black/70 text-sm rounded-lg px-3 py-2 text-center text-white">
-
-        <span v-if="isCurrentGameCompleted" class="text-white">
-          You have finished this game 🎉
-        </span>
-
-        <span v-else class="text-white">
-          Play and enjoy 🎮
-        </span>
+        <!-- SHARE -->
+        <button @click="shareGame" class="p-2 active:scale-95 transition">
+          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5"
+            stroke="currentColor" class="w-6 h-6">
+            <path stroke-linecap="round" stroke-linejoin="round"
+              d="M7.217 10.907a2.25 2.25 0 1 0 0 2.186m0-2.186c.18.324.283.696.283 1.093s-.103.77-.283 1.093m0-2.186 9.566-5.314m-9.566 7.5 9.566 5.314m0 0a2.25 2.25 0 1 0 3.935 2.186 2.25 2.25 0 0 0-3.935-2.186Zm0-12.814a2.25 2.25 0 1 0 3.933-2.185 2.25 2.25 0 0 0-3.933 2.185Z" />
+          </svg>
+        </button>
 
       </div>
-    </div> -->
+
+      <div class="w-full h-full relative overflow-hidden">
+
+        <transition :name="transitionName" mode="out-in">
+
+          <div :key="iframeKey" class="w-full h-full absolute inset-0">
+
+            <div class="absolute inset-0">
+
+              <iframe v-if="iframeUrl" ref="iframeRef" :src="iframeUrl" class="w-full h-full border-0"
+                style="touch-action: manipulation;" @load="onIframeLoaded" @error="onIframeError" />
+
+            </div>
+
+          </div>
+
+        </transition>
+
+        <div v-if="isLoading || isSwitchingGame"
+          class="absolute inset-0 flex items-center justify-center bg-white z-50">
+          <img :src="AqadaImage" class="animate-pulse" />
+        </div>
+
+      </div>
+
+    </div>
+
     <!-- BOTTOM BAR -->
     <div class="absolute bottom-16 left-0 w-full z-40 px-4 pb-2">
       <div class="bg-black/70 text-sm rounded-lg px-3 py-2 text-center text-white">
@@ -107,7 +127,8 @@
           </span>
 
           <span v-else class="text-white">
-            Play and enjoy 🎮
+            Click <span class="text-white">
+              <button @click="showHowToPlay = true"> ? </button></span> to know How To Play
           </span>
         </template>
 
@@ -175,13 +196,59 @@
 
         <h2 class="text-xl font-bold mb-4">How to Play</h2>
 
-        <!-- <p>
-          {{
-            currentGameData?.game_type_how_to?.content ||
-            "Instructions not available"
-          }}
-        </p> -->
-        <p v-html="currentGameData?.game_type_how_to?.content || 'Instructions not available'"></p>
+        <!-- <p v-html="currentGameData?.game_type_how_to?.content || 'Instructions not available'"></p> -->
+
+        <div class="how-to-content" v-html="currentGameData?.game_type_how_to?.content || 'Instructions not available'">
+        </div>
+      </div>
+    </div>
+
+    <!-- SETTINGS POPUP -->
+    <div v-if="showSettings" class="fixed inset-0 bg-black/50 flex items-center justify-center z-[999]">
+      <div class="bg-white rounded-xl w-11/12 max-w-4xl max-h-[85vh] overflow-hidden" @click.stop>
+
+        <!-- HEADER -->
+        <div class="flex items-center justify-between border-b px-5 py-4">
+
+          <div class="flex items-center gap-3">
+
+            <button v-if="activeSettingsComponent" @click="goBackSettingsMenu" class="font-medium">
+              ← Back
+            </button>
+
+            <h2 class="text-xl font-bold">
+              {{ settingsTitle || "Settings" }}
+            </h2>
+
+          </div>
+
+          <button @click="closeSettings">
+            ✕
+          </button>
+
+        </div>
+
+        <!-- BODY -->
+        <div class="overflow-y-auto max-h-[75vh] p-5">
+
+          <!-- SETTINGS MENU -->
+          <div v-if="!activeSettingsComponent" class="space-y-3">
+
+            <button @click="openPrivacyPolicy" class="w-full text-left border rounded-xl p-4 hover:bg-gray-50">
+              Privacy Policy
+            </button>
+
+            <button @click="openTermsConditions" class="w-full text-left border rounded-xl p-4 hover:bg-gray-50">
+              Terms & Conditions
+            </button>
+
+          </div>
+
+          <!-- DYNAMIC COMPONENT -->
+          <component v-else :is="activeSettingsComponent" />
+
+        </div>
+
       </div>
     </div>
 
@@ -194,19 +261,25 @@ import {
   computed,
   onMounted,
   onBeforeUnmount,
-  nextTick
+  nextTick,
+  markRaw
 } from "vue";
 
 import axios from "axios";
 import AqadaImage from "/Aqada.jpg";
 
+import PrivacyPolicy from "./privacy-policy.vue";
+import TermsAndConditions from "./terms-and-conditions.vue";
+
 import { useGameStore } from "../stores/useGameStore";
 import { useUserStore } from "../stores/useUserStore";
+import { useAppStore } from "../stores/useAppStore";
 
 const isOffline = ref(!navigator.onLine);
 
 const gameStore = useGameStore();
 const userStore = useUserStore();
+const appStore = useAppStore();
 
 /* STATE */
 const currentGame = ref(0);
@@ -221,6 +294,10 @@ const canGoDown = ref(true);
 
 const showHowToPlay = ref(false);
 const showHelpOverlay = ref(false);
+
+const showSettings = ref(false);
+const activeSettingsComponent = ref(null);
+const settingsTitle = ref("");
 
 const transitionName = ref("slide-up");
 const initialSequence = ref(null);
@@ -270,6 +347,33 @@ function closeHelpOverlay() {
   localStorage.setItem("aqada_help_seen", "true");
 }
 
+function openSettings() {
+  showSettings.value = true;
+  activeSettingsComponent.value = null;
+  settingsTitle.value = "";
+}
+
+function closeSettings() {
+  showSettings.value = false;
+  activeSettingsComponent.value = null;
+  settingsTitle.value = "";
+}
+
+function openPrivacyPolicy() {
+  settingsTitle.value = "Privacy Policy";
+  activeSettingsComponent.value = markRaw(PrivacyPolicy);
+}
+
+function openTermsConditions() {
+  settingsTitle.value = "Terms & Conditions";
+  activeSettingsComponent.value = markRaw(TermsAndConditions);
+}
+
+function goBackSettingsMenu() {
+  activeSettingsComponent.value = null;
+  settingsTitle.value = "";
+}
+
 /* DATE */
 function formatPublishDate(dateTime) {
   if (!dateTime) return "";
@@ -314,6 +418,37 @@ function getParamKeyFromUrl(url) {
   }
 
   return pathParts[pathParts.length - 1];
+}
+
+/* SHARE GAME */
+async function shareGame() {
+  try {
+    const game = currentGameData.value;
+
+    if (!game) return;
+
+    // Share actual game URL
+    const shareUrl = iframeUrl.value;
+
+    const shareData = {
+      title: game.game_type_name || "Aqada Game",
+      text: `Play ${game.game_type_name} on Aqada 🎮`,
+      url: shareUrl
+    };
+
+    // Mobile native share
+    if (navigator.share) {
+      await navigator.share(shareData);
+    } else {
+      // Desktop fallback
+      await navigator.clipboard.writeText(shareUrl);
+
+      alert("Game link copied to clipboard");
+    }
+
+  } catch (error) {
+    console.error("Share failed:", error);
+  }
 }
 
 function getGameUrl(game, uid) {
@@ -469,6 +604,9 @@ async function switchGame(direction, scrollDir) {
 
 /* MOUNT */
 onMounted(async () => {
+  // Refresh once per day after 6:30 AM
+  appStore.checkMorningRefresh();
+
   checkFirstVisit();
 
   if (!localStorage.getItem("completed")) {
@@ -484,6 +622,7 @@ onMounted(async () => {
   await gameStore.fetchGames();
 
   const firstGame = games.value[0];
+
   if (!firstGame) return;
 
   localStorage.setItem("gameId", firstGame._id);
@@ -497,7 +636,7 @@ onMounted(async () => {
   canGoUp.value = false;
   canGoDown.value = seq !== 1;
 
-  /* check every second (works fine now because reactive state added) */
+  // Check completed games every second
   completedCheckTimer = setInterval(() => {
     checkCompletedGame();
   }, 1000);
@@ -515,9 +654,13 @@ onBeforeUnmount(() => {
 .slide-up-leave-active,
 .slide-down-enter-active,
 .slide-down-leave-active {
-  transition: all 0.45s ease;
+  transition: all 0.5s ease;
   position: absolute;
   inset: 0;
+}
+
+iframe {
+  touch-action: manipulation;
 }
 
 .slide-up-enter-from {
@@ -542,5 +685,18 @@ onBeforeUnmount(() => {
 
 .slide-down-leave-to {
   transform: translateY(100%);
+}
+
+.how-to-content {
+  white-space: normal;
+  word-break: break-word;
+}
+
+.how-to-content em {
+  font-style: italic;
+}
+
+.how-to-content br {
+  display: block;
 }
 </style>
